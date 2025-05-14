@@ -26,18 +26,12 @@ pipeline {
             }
         }
         
-        stage('Terraform Plan') {
+        stage('Terraform Plan and Apply') {
             steps {
                 withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
+                    // Use the same credentials context for both plan and apply
                     bat "terraform plan -var=\"ssh_private_key_path=${SSH_KEY}\" -out=tfplan"
-                }
-            }
-        }
-        
-        stage('Terraform Apply') {
-            steps {
-                withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
-                    bat "terraform apply -var=\"ssh_private_key_path=${SSH_KEY}\" -auto-approve tfplan"
+                    bat "terraform apply -auto-approve tfplan"
                 }
             }
         }
@@ -95,7 +89,13 @@ ${publicIp} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyCheck
         }
         failure {
             echo 'Deployment failed!'
-            
+            script {
+                emailext (
+                    subject: "Failed Pipeline: ${currentBuild.fullDisplayName}",
+                    body: "Something is wrong with ${env.BUILD_URL}",
+                    to: 'oshadakavinda2@gmail.com'
+                )
+            }
         }
     }
 }
