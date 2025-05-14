@@ -11,7 +11,7 @@ terraform {
   # Uncomment this block if you want to use remote state
    backend "s3" {
      bucket         = "gametfstate"
-     # key            = "game-store/terraform.tfstate"
+     key            = "game-store/terraform.tfstate"
      region         = "eu-north-1"
      dynamodb_table = "terraform-lock"
      encrypt        = true
