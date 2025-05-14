@@ -28,38 +28,17 @@ pipeline {
         }
         
         stage('Check Existing Resources') {
-            steps {
-                script {
-                    // Use AWS CLI to check for existing security group instead of Terraform data source
-                    // This avoids the limitations with Terraform data sources
-                    bat '''
-                        aws ec2 describe-security-groups --region %AWS_REGION% ^
-                        --filters "Name=group-name,Values=game-store-security-group" ^
-                        --query "SecurityGroups[*].GroupId" ^
-                        --output text > existing_sg.txt || echo "Security group check failed but continuing"
-                    '''
-                    
-                    // Read the result
-                    def sgId = readFile('existing_sg.txt').trim()
-                    
-                    if (sgId) {
-                        echo "Security group exists with ID: ${sgId}"
-                        
-                        // Modify the Terraform configuration to handle existing security group
-                        writeFile file: 'security_group_override.tf', text: """
-                        # Override the security group name to avoid conflicts
-                        resource "aws_security_group" "devops_sg" {
-                          name = "game-store-security-group-new-\${System.currentTimeMillis()}"
-                        }
-                        """
-                        
-                        echo "Created override configuration to use a new security group name"
-                    } else {
-                        echo "No existing security group found with that name"
-                    }
-                }
+    steps {
+        script {
+            def result = bat(script: 'terraform state list | findstr security_group || echo "No existing security group"', returnStdout: true).trim()
+            if (result.contains("No existing security group")) {
+                echo "No existing security group found in Terraform state"
+            } else {
+                echo "Found existing security group in Terraform state: ${result}"
             }
         }
+    }
+}
         
         stage('Terraform Plan') {
             steps {
