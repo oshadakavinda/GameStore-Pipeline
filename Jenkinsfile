@@ -70,12 +70,12 @@ ${publicIp} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyCheck
         }
         
         stage('Ansible Deploy') {
-            steps {
-                withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
-                    // Run Ansible playbook with the SSH key from Jenkins credentials
-                    bat "wsl ansible-playbook -i inventory.ini --private-key=\"${SSH_KEY}\" deploy_game_store.yml"
-                }
-            }
+        steps {
+         withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
+            // Run Ansible in Docker
+            bat "docker run --rm -v %CD%:/ansible -v ${SSH_KEY}:/ssh_key.pem ansible-runner ansible-playbook -i inventory.ini --private-key=/ssh_key.pem deploy_game_store.yml"
+             }
+         }
         }
         
         stage('Verify Deployment') {
