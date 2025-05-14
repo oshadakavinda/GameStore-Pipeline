@@ -33,11 +33,7 @@ pipeline {
             }
         }
         
-        stage('Approval') {
-            steps {
-                input message: 'Review the plan and approve to apply', ok: 'Apply'
-            }
-        }
+        
         
         stage('Terraform Apply') {
             steps {
