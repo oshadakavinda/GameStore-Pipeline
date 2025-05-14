@@ -30,50 +30,40 @@ pipeline {
         stage('Check Existing Resources') {
             steps {
                 script {
-                    // Create a helper script to check for existing security group
-                    writeFile file: 'check_sg.tf', text: '''
-                    data "aws_security_group" "existing" {
-                      count = 1
-                      name = "game-store-security-group"
-                      
-                      # This will fail gracefully if the SG doesn't exist
-                      lifecycle {
-                        ignore_changes = all
-                      }
-                    }
-                    
-                    output "existing_sg_id" {
-                      value = try(data.aws_security_group.existing[0].id, "")
-                    }
+                    // Use AWS CLI to check for existing security group instead of Terraform data source
+                    // This avoids the limitations with Terraform data sources
+                    bat '''
+                        aws ec2 describe-security-groups --region %AWS_REGION% ^
+                        --filters "Name=group-name,Values=game-store-security-group" ^
+                        --query "SecurityGroups[*].GroupId" ^
+                        --output text > existing_sg.txt || echo "Security group check failed but continuing"
                     '''
                     
-                    // Run terraform refresh to check existing resources
-                    bat 'terraform refresh'
+                    // Read the result
+                    def sgId = readFile('existing_sg.txt').trim()
                     
-                    // Try to get the output and store it
-                    def sgCheckResult = bat(script: 'terraform output existing_sg_id', returnStatus: true)
-                    
-                    if (sgCheckResult == 0) {
-                        echo "Security group already exists. Will try to import it."
-                        def sgId = bat(script: 'terraform output -raw existing_sg_id', returnStdout: true).trim()
+                    if (sgId) {
+                        echo "Security group exists with ID: ${sgId}"
                         
-                        // Check if we can import the security group
-                        if (sgId) {
-                            echo "Attempting to import security group: ${sgId}"
-                            bat "terraform import aws_security_group.devops_sg ${sgId} || echo Import failed but continuing"
+                        // Modify the Terraform configuration to handle existing security group
+                        writeFile file: 'security_group_override.tf', text: """
+                        # Override the security group name to avoid conflicts
+                        resource "aws_security_group" "devops_sg" {
+                          name = "game-store-security-group-new-\${System.currentTimeMillis()}"
                         }
+                        """
+                        
+                        echo "Created override configuration to use a new security group name"
+                    } else {
+                        echo "No existing security group found with that name"
                     }
-                    
-                    // Clean up the helper file
-                    bat 'del check_sg.tf'
                 }
             }
         }
         
         stage('Terraform Plan') {
             steps {
-                // Use -replace flag to handle conflicts if import failed
-                bat 'terraform plan -out=tfplan -replace="aws_security_group.devops_sg"'
+                bat 'terraform plan -out=tfplan'
             }
         }
         
@@ -85,21 +75,21 @@ pipeline {
                     if (applyResult != 0) {
                         echo "Initial apply failed. Attempting recovery..."
                         
-                        // Update security group name to avoid conflict
-                        writeFile file: 'sg_fix.tf', text: '''
-                        // Temporarily modify the security group name to avoid conflicts
+                        // Try a more aggressive approach - update the main configuration
+                        writeFile file: 'sg_fix.tf', text: """
+                        # Override the original security group with a timestamp-based name
                         resource "aws_security_group" "devops_sg" {
-                          name = "game-store-security-group-${formatdate("YYYYMMDD-hhmmss", timestamp())}"
-                          // Rest of the configuration is pulled from main.tf
+                          name = "game-store-sg-\${System.currentTimeMillis()}"
                         }
-                        '''
+                        """
                         
                         // Try planning and applying again with the modified configuration
                         bat 'terraform plan -out=tfplan_recovery'
-                        bat 'terraform apply -auto-approve tfplan_recovery'
+                        def recoveryResult = bat(script: 'terraform apply -auto-approve tfplan_recovery', returnStatus: true)
                         
-                        // Clean up
-                        bat 'del sg_fix.tf'
+                        if (recoveryResult != 0) {
+                            error "Both initial and recovery deployment attempts failed"
+                        }
                     }
                 }
             }
@@ -122,6 +112,12 @@ pipeline {
     
     post {
         always {
+            script {
+                // Clean up any temporary files we created
+                bat 'if exist security_group_override.tf del security_group_override.tf'
+                bat 'if exist sg_fix.tf del sg_fix.tf'
+                bat 'if exist existing_sg.txt del existing_sg.txt'
+            }
             cleanWs(cleanWhenNotBuilt: false,
                    deleteDirs: true,
                    disableDeferredWipeout: true,
@@ -132,7 +128,20 @@ pipeline {
         }
         failure {
             echo 'Deployment failed!'
-        
+            
+            // Send notification if email plugin is configured
+            script {
+                try {
+                    emailext (
+                        subject: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+                        body: """<p>FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
+                        <p>Check console output at &QUOT;<a href='${env.BUILD_URL}'>${env.JOB_NAME} [${env.BUILD_NUMBER}]</a>&QUOT;</p>""",
+                        recipientProviders: [[$class: 'DevelopersRecipientProvider']]
+                    )
+                } catch (e) {
+                    echo "Email notification failed but continuing: ${e.message}"
+                }
+            }
         }
     }
 }
