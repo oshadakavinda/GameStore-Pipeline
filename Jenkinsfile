@@ -27,24 +27,25 @@ pipeline {
             }
         }
         
-        stage('Check Existing Resources') {
+        stage('Terraform Plan with Resource Check') {
     steps {
         script {
-            def result = bat(script: 'terraform state list | findstr security_group || echo "No existing security group"', returnStdout: true).trim()
-            if (result.contains("No existing security group")) {
-                echo "No existing security group found in Terraform state"
+            // Run terraform plan and capture the output
+            def planOutput = bat(script: 'terraform plan -no-color', returnStdout: true).trim()
+            
+            // Check if the security group already exists based on plan output
+            if (planOutput.contains("game-store-security-group") && planOutput.contains("will be created")) {
+                echo "Security group will be created according to the plan"
+            } else if (planOutput.contains("game-store-security-group") && planOutput.contains("will be destroyed")) {
+                echo "Warning: Security group will be destroyed according to the plan"
+            } else if (planOutput.contains("game-store-security-group") && planOutput.contains("will be updated")) {
+                echo "Security group will be updated according to the plan"
             } else {
-                echo "Found existing security group in Terraform state: ${result}"
+                echo "No changes to security group detected in plan"
             }
         }
     }
 }
-        
-        stage('Terraform Plan') {
-            steps {
-                bat 'terraform plan -out=tfplan'
-            }
-        }
         
         stage('Terraform Apply') {
             steps {
