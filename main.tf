@@ -9,13 +9,13 @@ terraform {
   required_version = ">= 1.0.0"
   
   # Uncomment this block if you want to use remote state
-   backend "s3" {
-     bucket         = "gametfstate"
-     key            = "game-store/terraform.tfstate"
-     region         = "eu-north-1"
-     dynamodb_table = "terraform-lock"
-     encrypt        = true
-   }
+  # backend "s3" {
+  #   bucket         = "gametfstate"
+  #   key            = "game-store/terraform.tfstate"
+  #   region         = "eu-north-1"
+  #   dynamodb_table = "terraform-lock"
+  #   encrypt        = true
+  # }
 }
 
 provider "aws" {
