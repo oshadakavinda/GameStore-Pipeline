@@ -26,24 +26,6 @@ pipeline {
             }
         }
         
-        stage('Check Existing Resources') {
-            steps {
-                script {
-                    try {
-                        def sgExists = bat(script: 'terraform state list | findstr security_group || echo "No existing security group"', returnStdout: true).trim()
-                        if (sgExists.contains("aws_security_group")) {
-                            echo "Security group exists in state"
-                            bat 'terraform state show $(terraform state list | findstr security_group | head -1) > existing_sg.txt'
-                        } else {
-                            echo "No existing security group found in state"
-                        }
-                    } catch (Exception e) {
-                        echo "Warning: Could not check state. This might be the first deployment. Continuing anyway."
-                    }
-                }
-            }
-        }
-        
         stage('Terraform Plan') {
             steps {
                 bat 'terraform plan -out=tfplan'
@@ -56,20 +38,52 @@ pipeline {
             }
         }
         
-        stage('Output') {
+        stage('Get Instance IP') {
             steps {
-                bat 'terraform output'
+                script {
+                    // Extract IP address from Terraform output and save it for Ansible
+                    def tfOutput = bat(script: 'terraform output -json instance_public_ip', returnStdout: true).trim()
+                    def publicIp = tfOutput.replaceAll('"', '').replaceAll('\\r', '').replaceAll('\\n', '').trim()
+                    
+                    // Create Ansible inventory file with SSH key reference from Jenkins credentials
+                    writeFile file: 'inventory.ini', text: """[game_store_servers]
+${publicIp} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+"""
+                    
+                    // Copy docker-compose.yml to workspace for Ansible
+                    writeFile file: 'docker-compose.yml', text: readFile('docker-compose-template.yml')
+                }
+            }
+        }
+        
+        stage('Wait for SSH') {
+            steps {
+                // Give EC2 instance time to initialize
+                sleep(time: 60, unit: 'SECONDS')
+            }
+        }
+        
+        stage('Ansible Deploy') {
+            steps {
+                withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
+                    // Run Ansible playbook with the SSH key from Jenkins credentials
+                    bat "ansible-playbook -i inventory.ini --private-key=${SSH_KEY} deploy_game_store.yml"
+                }
+            }
+        }
+        
+        stage('Verify Deployment') {
+            steps {
+                script {
+                    def tfOutput = bat(script: 'terraform output -json application_urls', returnStdout: true).trim()
+                    echo "Application deployed. URLs available in Terraform output."
+                }
             }
         }
     }
     
     post {
         always {
-            script {
-                bat 'if exist security_group_override.tf del security_group_override.tf'
-                bat 'if exist sg_fix.tf del sg_fix.tf'
-                bat 'if exist existing_sg.txt del existing_sg.txt'
-            }
             cleanWs()
         }
         success {

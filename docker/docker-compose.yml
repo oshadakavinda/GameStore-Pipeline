@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  backend:
+    image: oshadakavinda2/game-store-backend:latest
+    ports:
+      - "5274:5274"
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5274
+    volumes:
+      - sqlite_data:/app/Data
+    restart: always  # This ensures automatic restart
+
+  frontend:
+    image: oshadakavinda2/game-store-frontend:latest
+    ports:
+      - "5003:8080"
+    depends_on:
+      - backend
+    restart: always  # This ensures automatic restart
+
+volumes:
+  sqlite_data:

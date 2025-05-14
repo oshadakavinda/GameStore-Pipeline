@@ -1,42 +1,21 @@
 #!/bin/bash
-# Update and install dependencies
-sudo apt-get update -y
-sudo apt-get install -y docker.io docker-compose curl
 
-# Start and enable Docker
-sudo systemctl start docker
-sudo systemctl enable docker
-sudo usermod -aG docker ubuntu
+# This script is now minimal as most configuration will be handled by Ansible
+# It just ensures the system is updated and SSH is available for Ansible
 
-# Create docker-compose.yml
-cat > /home/ubuntu/docker-compose.yml <<'DOCKERCOMPOSE'
-version: '3'
-services:
-  backend:
-    image: oshadakavinda2/game-store-backend:latest
-    ports:
-      - "5274:5274"
-    environment:
-      - ASPNETCORE_URLS=http://0.0.0.0:5274
-    volumes:
-      - sqlite_data:/app/Data
-    restart: always
+# Update the system
+yum update -y || apt-get update -y
 
-  frontend:
-    image: oshadakavinda2/game-store-frontend:latest
-    ports:
-      - "5003:8080"
-    depends_on:
-      - backend
-    restart: always
+# Ensure SSH server is running for Ansible connectivity
+if [ -f /etc/redhat-release ]; then
+    # For Amazon Linux/CentOS/RHEL
+    systemctl enable sshd
+    systemctl start sshd
+else
+    # For Ubuntu/Debian
+    systemctl enable ssh
+    systemctl start ssh
+fi
 
-volumes:
-  sqlite_data:
-DOCKERCOMPOSE
-
-# Fix permissions
-sudo chown ubuntu:ubuntu /home/ubuntu/docker-compose.yml
-
-# Deploy the application using Docker Compose
-cd /home/ubuntu
-sudo docker-compose up -d
+# Optional: Create a marker file to indicate this instance is ready for Ansible
+echo "$(date) - EC2 instance initialized and ready for Ansible provisioning" > /var/log/terraform-ansible-ready.log

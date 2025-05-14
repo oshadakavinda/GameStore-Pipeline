@@ -1,0 +1,96 @@
+---
+- name: Deploy Game Store Application
+  hosts: game_store_servers
+  become: yes  # Use sudo privilege
+  
+  vars:
+    app_dir: /opt/game-store
+    docker_compose_file: "{{ app_dir }}/docker-compose.yml"
+  
+  tasks:
+    - name: Update apt package cache (for Ubuntu/Debian)
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600  # Update cache if older than 1 hour
+      when: ansible_os_family == "Ubuntu"
+      
+    - name: Update yum package cache (for Amazon Linux/CentOS/RHEL)
+      yum:
+        update_cache: yes
+      when: ansible_os_family == "RedHat"
+        
+    - name: Install Docker dependencies
+      package:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - python3-pip
+        state: present
+      when: ansible_os_family == "Debian"
+        
+    - name: Install Docker dependencies for Amazon Linux
+      package:
+        name:
+          - amazon-linux-extras
+          - docker
+          - python3-pip
+        state: present
+      when: ansible_distribution == "Amazon"
+        
+    - name: Install Docker Python module
+      pip:
+        name: docker
+        state: present
+        
+    - name: Install Docker Compose Python module
+      pip:
+        name: docker-compose
+        state: present
+        
+    - name: Ensure Docker service is started and enabled
+      service:
+        name: docker
+        state: started
+        enabled: yes
+        
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: '0755'
+        
+    - name: Copy docker-compose.yml file
+      copy:
+        src: ./docker-compose.yml
+        dest: "{{ docker_compose_file }}"
+        mode: '0644'
+        
+    - name: Pull Docker images
+      docker_compose:
+        project_src: "{{ app_dir }}"
+        pull: yes
+      register: pull_result
+      
+    - name: Print pull result
+      debug:
+        var: pull_result
+        
+    - name: Deploy Game Store using Docker Compose
+      docker_compose:
+        project_src: "{{ app_dir }}"
+        state: present
+        
+    - name: Check if containers are running
+      shell: docker ps | grep game-store
+      register: container_status
+      ignore_errors: yes
+        
+    - name: Print container status
+      debug:
+        var: container_status.stdout_lines
+        
+    - name: Setup Nginx as reverse proxy
+      include_tasks: nginx_setup.yml
+      when: setup_nginx is defined and setup_nginx|bool
