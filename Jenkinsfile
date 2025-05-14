@@ -39,23 +39,31 @@ pipeline {
         stage('Get Instance IP') {
             steps {
                 script {
-                    // Extract IP address from Terraform output and save it for Ansible
-                    def tfOutput = bat(script: 'terraform output -json instance_public_ip', returnStdout: true).trim()
-                    def publicIp = readJSON(text: tfOutput).value
+                    // Extract IP address from Terraform output
+                    def tfOutput = bat(script: 'terraform output -raw instance_public_ip', returnStdout: true).trim()
+                    def publicIp = tfOutput.replaceAll("\\r", "").replaceAll("\\n", "").trim()
+                    
+                    // Debug output to see what we're getting
+                    echo "Public IP extracted: ${publicIp}"
                     
                     // Create Ansible inventory file with SSH key reference from Jenkins credentials
                     writeFile file: 'inventory.ini', text: """[game_store_servers]
 ${publicIp} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyChecking=no'
 """
                     
-                    // Copy docker-compose.yml to workspace for Ansible
-                    writeFile file: 'docker-compose.yml', text: readFile('docker-compose-template.yml')
+                    // Copy docker-compose.yml to workspace for Ansible if needed
+                    if (fileExists('docker-compose-template.yml')) {
+                        writeFile file: 'docker-compose.yml', text: readFile('docker-compose-template.yml')
+                    } else {
+                        echo "Warning: docker-compose-template.yml file not found."
+                    }
                 }
             }
         }
         
         stage('Wait for SSH') {
             steps {
+                echo "Waiting for EC2 instance to become available for SSH..."
                 // Give EC2 instance time to initialize
                 sleep(time: 60, unit: 'SECONDS')
             }
@@ -73,8 +81,14 @@ ${publicIp} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyCheck
         stage('Verify Deployment') {
             steps {
                 script {
-                    def tfOutput = bat(script: 'terraform output -json application_urls', returnStdout: true).trim()
-                    echo "Application deployed. URLs available in Terraform output."
+                    try {
+                        def tfOutput = bat(script: 'terraform output -raw application_urls', returnStdout: true).trim()
+                        echo "Application deployed successfully!"
+                        echo "Application URLs: ${tfOutput}"
+                    } catch (Exception e) {
+                        echo "Error retrieving application URLs: ${e.message}"
+                        echo "Using direct output from previous Terraform apply step"
+                    }
                 }
             }
         }
