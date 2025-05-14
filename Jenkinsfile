@@ -52,8 +52,8 @@ ${publicIp} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyCheck
 """
                     
                     // Copy docker-compose.yml to workspace for Ansible if needed
-                    if (fileExists('docker-compose-template.yml')) {
-                        writeFile file: 'docker-compose.yml', text: readFile('docker-compose-template.yml')
+                    if (fileExists('docker-compose.yml')) {
+                        writeFile file: 'docker-compose.yml', text: readFile('docker-compose.yml')
                     } else {
                         echo "Warning: docker-compose-template.yml file not found."
                     }
@@ -73,7 +73,7 @@ ${publicIp} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyCheck
             steps {
                 withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
                     // Run Ansible playbook with the SSH key from Jenkins credentials
-                    bat "ansible-playbook -i inventory.ini --private-key=\"${SSH_KEY}\" deploy_game_store.yml"
+                    bat "wsl ansible-playbook -i inventory.ini --private-key=\"${SSH_KEY}\" deploy_game_store.yml"
                 }
             }
         }
