@@ -70,13 +70,14 @@ ${publicIp} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyCheck
         }
         
         stage('Ansible Deploy') {
-        steps {
-         withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
-            // Run Ansible in Docker
-            bat "docker run --rm -v %CD%:/ansible -v ${SSH_KEY}:/ssh_key.pem ansible-runner ansible-playbook -i inventory.ini --private-key=/ssh_key.pem deploy_gamestore.yml"
-             }
-         }
+    steps {
+        withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
+            // Option 1: Change directory before running Docker
+            bat "cd ansible && docker run --rm -v %CD%:/ansible -v ${SSH_KEY}:/ssh_key.pem ansible-runner ansible-playbook -i ../inventory.ini --private-key=/ssh_key.pem deploy_gamestore.yml"
+            
         }
+    }
+}
         
         stage('Verify Deployment') {
             steps {
