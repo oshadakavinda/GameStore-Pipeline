@@ -20,7 +20,7 @@ variable "instance_type" {
 variable "key_name" {
   description = "SSH key name to access EC2 instance"
   type        = string
-  default     = "your-key-name" # Replace with your key pair name
+  default     = "gamestore" # Replace with your key pair name
 }
 
 variable "volume_size" {
@@ -51,5 +51,5 @@ variable "docker_compose_path" {
 variable "ssh_private_key_path" {
   description = "Path to the SSH private key file for Ansible"
   type        = string
-  default     = "./your-key.pem" # Replace with your key path
+  # default     = "./your-key.pem" # Replace with your key path
 }
