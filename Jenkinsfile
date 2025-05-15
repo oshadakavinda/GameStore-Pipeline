@@ -69,22 +69,12 @@ ${publicIp} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyCheck
             }
         }
         
-        stage('Ansible Deploy') {
+         stage('Ansible Deploy') {
             steps {
-                withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
-                    // Adjust path handling for WSL
-                    sh """
-                        cd ansible
-                        # Convert Windows path to WSL path for SSH key
-                        WSL_SSH_KEY=\$(wslpath '${SSH_KEY}')
-                        
-                        # Run Docker with proper volume mounts for WSL
-                        docker run --rm \
-                          -v \$(pwd):/ansible \
-                          -v \$WSL_SSH_KEY:/ssh_key.pem \
-                          ansible-runner \
-                          ansible-playbook -i ../inventory.ini --private-key=/ssh_key.pem deploy_gamestore.yml
-                    """
+                // Ensure Ansible is installed on the Jenkins server or agent
+                script {
+                    // Run Ansible playbook
+                    sh "ansible-playbook -i inventory.ini deploy_game_store.yml"
                 }
             }
         }
