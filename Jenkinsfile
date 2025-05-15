@@ -59,6 +59,9 @@ pipeline {
                         cp "${SSH_KEY}" ansible/gamestore.pem
                         chmod 600 ansible/gamestore.pem
                         
+                        # Debug - List files and permissions in ansible directory
+                        ls -l ansible
+                        
                         # Create ansible.cfg file to disable host key checking
                         cat > ansible/ansible.cfg << EOF
 [defaults]
@@ -71,6 +74,9 @@ EOF
                         sh '''
                             # Debug - Check inventory file content
                             cat inventory.ini
+                            
+                            # Debug - List files in current directory
+                            ls -l
                             
                             # Run ansible with explicit private key path
                             ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory.ini deploy_gamestore.yml --private-key=gamestore.pem -v
