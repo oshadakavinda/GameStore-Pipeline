@@ -21,6 +21,7 @@
     - name: Install Docker dependencies
       package:
         name:
+          - docker-compose
           - apt-transport-https
           - ca-certificates
           - curl
