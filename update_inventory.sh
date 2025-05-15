@@ -1,17 +1,16 @@
 #!/bin/bash
 
-# Navigate to the Terraform directory
-cd terraform || exit
+# Extract IP address from Terraform output
+public_ip=$(terraform output -raw instance_public_ip)
+public_ip=$(echo "$public_ip" | tr -d '[:space:]')
 
-# Get the public IP of the server from Terraform
-SERVER_IP=$(terraform output -raw instance_public_ip)
+# Debug output to see what we're getting
+echo "Public IP extracted: ${public_ip}"
 
-# Navigate back to Ansible directory
-cd ../ansible || exit
+# Create Ansible inventory file
+cat > inventory.ini << EOF
+[game_store_servers]
+${public_ip} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+EOF
 
-# Clear the previous content of the inventory
-echo "" > inventory.ini
-
-# Update the Ansible inventory file
-echo "[ec2]" > inventory.ini
-echo "ec2-instance ansible_host=$SERVER_IP ansible_user=ubuntu ansible_ssh_private_key_file=gamestore.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> inventory.ini
+echo "Inventory file created successfully"
