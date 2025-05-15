@@ -52,43 +52,37 @@
         name: docker
         state: started
         enabled: yes
-        
+
+    - name: Debug - Check Docker service status
+      shell: systemctl status docker
+      register: docker_status
+      ignore_errors: yes
+
+    - name: Print Docker service status
+      debug:
+        var: docker_status.stdout_lines
+
+    - name: Debug - Check Docker info
+      shell: docker info
+      register: docker_info
+      ignore_errors: yes
+
+    - name: Print Docker info
+      debug:
+        var: docker_info.stdout_lines
+
+    - name: Debug - Check user groups
+      shell: groups
+      register: user_groups
+      ignore_errors: yes
+
+    - name: Print user groups
+      debug:
+        var: user_groups.stdout_lines
+
     - name: Create application directory
       file:
         path: "{{ app_dir }}"
         state: directory
         mode: '0755'
-        
-    - name: Copy docker-compose.yml file
-      copy:
-        src: ../docker/docker-compose.yml
-        dest: "{{ docker_compose_file }}"
-        mode: '0644'
-        
-    - name: Pull Docker images
-      community.docker.docker_compose:
-        project_src: "{{ app_dir }}"
-        pull: yes
-      register: pull_result
-      
-    - name: Print pull result
-      debug:
-        var: pull_result
-        
-    - name: Deploy Game Store using Docker Compose
-      community.docker.docker_compose:
-        project_src: "{{ app_dir }}"
-        state: present
-        
-    - name: Check if containers are running
-      shell: docker ps | grep game-store
-      register: container_status
-      ignore_errors: yes
-        
-    - name: Print container status
-      debug:
-        var: container_status.stdout_lines
-        
-    - name: Setup Nginx as reverse proxy
-      include_tasks: nginx_setup.yml
-      when: setup_nginx is defined and setup_nginx|bool
+     

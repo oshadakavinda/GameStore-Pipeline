@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 # Extract IP address from Terraform output

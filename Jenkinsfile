@@ -68,7 +68,13 @@ pipeline {
                 }
             }
         }
-        
+
+        stage('Deploy App') {
+            steps {
+                sh 'bash deploy_app.sh'
+            }
+        }
+
         stage('Verify Deployment') {
             steps {
                 script {
