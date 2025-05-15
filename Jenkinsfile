@@ -59,6 +59,9 @@ pipeline {
                         cp "${SSH_KEY}" ansible/gamestore.pem
                         chmod 600 ansible/gamestore.pem
                         
+                        # Update inventory.ini to use correct SSH key path
+                        sed -i 's|ansible_ssh_private_key_file=.*|ansible_ssh_private_key_file=ansible/gamestore.pem|' ansible/inventory.ini
+                        
                         # Debug - List files and permissions in ansible directory
                         ls -l ansible
                         
