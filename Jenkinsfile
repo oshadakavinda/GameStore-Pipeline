@@ -36,28 +36,9 @@ pipeline {
             }
         }
         
-        stage('Get Instance IP') {
+        stage('Update Inventory') {
             steps {
-                script {
-                    // Extract IP address from Terraform output
-                    def tfOutput = sh(script: 'terraform output -raw instance_public_ip', returnStdout: true).trim()
-                    def publicIp = tfOutput.trim()
-                    
-                    // Debug output to see what we're getting
-                    echo "Public IP extracted: ${publicIp}"
-                    
-                    // Create Ansible inventory file with SSH key reference from Jenkins credentials
-                    writeFile file: 'inventory.ini', text: """[game_store_servers]
-${publicIp} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyChecking=no'
-"""
-                    
-                    // Copy docker-compose.yml to workspace for Ansible if needed
-                    if (fileExists('docker-compose.yml')) {
-                        writeFile file: 'docker-compose.yml', text: readFile('docker-compose.yml')
-                    } else {
-                        echo "Warning: docker-compose-template.yml file not found."
-                    }
-                }
+                sh 'bash update_inventory.sh'
             }
         }
         
