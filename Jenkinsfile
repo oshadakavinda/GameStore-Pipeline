@@ -14,6 +14,20 @@ pipeline {
             }
         }
         
+        stage('Download & Setup Key') {
+            steps {
+                script {
+                    sh """
+                    aws s3 cp s3://gamestoretfstate/gamestore.pem ./gamestore.pem
+                    chmod 400 gamestore.pem
+                    mkdir -p ansible
+                    cp gamestore.pem ansible/gamestore.pem
+                    whoami
+                    """
+                }
+            }
+        }
+        
         stage('Terraform Init') {
             steps {
                 sh 'terraform init'
@@ -28,11 +42,8 @@ pipeline {
         
         stage('Terraform Plan and Apply') {
             steps {
-                withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
-                    // Use the same credentials context for both plan and apply
-                    sh "terraform plan -var=\"ssh_private_key_path=${SSH_KEY}\" -out=tfplan"
-                    sh "terraform apply -auto-approve tfplan"
-                }
+                sh "terraform plan -var=\"ssh_private_key_path=./gamestore.pem\" -out=tfplan"
+                sh "terraform apply -auto-approve tfplan"
             }
         }
         
@@ -45,46 +56,15 @@ pipeline {
         stage('Wait for SSH') {
             steps {
                 echo "Waiting for EC2 instance to become available for SSH..."
-                // Give EC2 instance more time to initialize - increased from 60 to 120 seconds
+                // Give EC2 instance more time to initialize
                 sleep(time: 120, unit: 'SECONDS')
             }
         }
         
         stage('Ansible Deploy') {
             steps {
-                withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
-                    // Create a temporary copy of the SSH key in the workspace
-                    sh '''
-                        mkdir -p ansible
-                        cp "${SSH_KEY}" ansible/gamestore.pem
-                        chmod 600 ansible/gamestore.pem
-                        
-                        # Update inventory.ini to use correct SSH key path
-                        sed -i 's|ansible_ssh_private_key_file=.*|ansible_ssh_private_key_file=ansible/gamestore.pem|' ansible/inventory.ini
-                        
-                        # Debug - List files and permissions in ansible directory
-                        ls -l ansible
-                        
-                        # Create ansible.cfg file to disable host key checking
-                        cat > ansible/ansible.cfg << EOF
-[defaults]
-host_key_checking = False
-EOF
-                    '''
-                    
-                    // Ensure Ansible is installed on the Jenkins server or agent
-                    dir("ansible") {
-                        sh '''
-                            # Debug - Check inventory file content
-                            cat inventory.ini
-                            
-                            # Debug - List files in current directory
-                            ls -l
-                            
-                            # Run ansible with explicit private key path
-                            ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory.ini deploy_gamestore.yml --private-key=gamestore.pem -v
-                        '''
-                    }
+                dir("ansible") {
+                    sh "ansible-playbook -i inventory.ini deploy_gamestore.yml"
                 }
             }
         }
