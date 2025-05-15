@@ -53,20 +53,28 @@ pipeline {
         stage('Ansible Deploy') {
             steps {
                 withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
-                    // Create ansible.cfg file to disable host key checking
+                    // Create a temporary copy of the SSH key in the workspace
                     sh '''
                         mkdir -p ansible
+                        cp "${SSH_KEY}" ansible/gamestore.pem
+                        chmod 600 ansible/gamestore.pem
+                        
+                        # Create ansible.cfg file to disable host key checking
                         cat > ansible/ansible.cfg << EOF
 [defaults]
 host_key_checking = False
-private_key_file = ${SSH_KEY}
 EOF
                     '''
                     
                     // Ensure Ansible is installed on the Jenkins server or agent
                     dir("ansible") {
-                        sh "chmod 600 ${SSH_KEY}"
-                        sh "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory.ini deploy_gamestore.yml --private-key=${SSH_KEY}"
+                        sh '''
+                            # Debug - Check inventory file content
+                            cat inventory.ini
+                            
+                            # Run ansible with explicit private key path
+                            ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory.ini deploy_gamestore.yml --private-key=gamestore.pem -v
+                        '''
                     }
                 }
             }
