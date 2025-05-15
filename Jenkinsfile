@@ -72,9 +72,8 @@ ${publicIp} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyCheck
          stage('Ansible Deploy') {
             steps {
                 // Ensure Ansible is installed on the Jenkins server or agent
-                script {
-                    // Run Ansible playbook
-                    sh "ansible-playbook -i inventory.ini deploy_game_store.yml"
+                dir("ansible") {
+                    sh "ansible-playbook -i inventory.ini deploy_gamestore.yml"
                 }
             }
         }
