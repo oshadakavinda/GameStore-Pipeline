@@ -45,16 +45,29 @@ pipeline {
         stage('Wait for SSH') {
             steps {
                 echo "Waiting for EC2 instance to become available for SSH..."
-                // Give EC2 instance time to initialize
-                sleep(time: 60, unit: 'SECONDS')
+                // Give EC2 instance more time to initialize - increased from 60 to 120 seconds
+                sleep(time: 120, unit: 'SECONDS')
             }
         }
         
-         stage('Ansible Deploy') {
+        stage('Ansible Deploy') {
             steps {
-                // Ensure Ansible is installed on the Jenkins server or agent
-                dir("ansible") {
-                    sh "ansible-playbook -i inventory.ini deploy_gamestore.yml"
+                withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
+                    // Create ansible.cfg file to disable host key checking
+                    sh '''
+                        mkdir -p ansible
+                        cat > ansible/ansible.cfg << EOF
+[defaults]
+host_key_checking = False
+private_key_file = ${SSH_KEY}
+EOF
+                    '''
+                    
+                    // Ensure Ansible is installed on the Jenkins server or agent
+                    dir("ansible") {
+                        sh "chmod 600 ${SSH_KEY}"
+                        sh "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory.ini deploy_gamestore.yml --private-key=${SSH_KEY}"
+                    }
                 }
             }
         }
@@ -84,7 +97,6 @@ pipeline {
         }
         failure {
             echo 'Deployment failed!'
-            
         }
     }
 }

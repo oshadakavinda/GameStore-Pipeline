@@ -2,7 +2,6 @@
 - name: Deploy Game Store Application
   hosts: game_store_servers
   become: yes  # Use sudo privilege
-  
   vars:
     app_dir: /opt/game-store
     docker_compose_file: "{{ app_dir }}/docker-compose.yml"
@@ -67,7 +66,7 @@
         mode: '0644'
         
     - name: Pull Docker images
-      docker_compose:
+      community.docker.docker_compose:
         project_src: "{{ app_dir }}"
         pull: yes
       register: pull_result
@@ -77,7 +76,7 @@
         var: pull_result
         
     - name: Deploy Game Store using Docker Compose
-      docker_compose:
+      community.docker.docker_compose:
         project_src: "{{ app_dir }}"
         state: present
         
