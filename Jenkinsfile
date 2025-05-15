@@ -16,13 +16,13 @@ pipeline {
         
         stage('Terraform Init') {
             steps {
-                bat 'terraform init'
+                sh 'terraform init'
             }
         }
         
         stage('Terraform Validate') {
             steps {
-                bat 'terraform validate'
+                sh 'terraform validate'
             }
         }
         
@@ -30,8 +30,8 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
                     // Use the same credentials context for both plan and apply
-                    bat "terraform plan -var=\"ssh_private_key_path=${SSH_KEY}\" -out=tfplan"
-                    bat "terraform apply -auto-approve tfplan"
+                    sh "terraform plan -var=\"ssh_private_key_path=${SSH_KEY}\" -out=tfplan"
+                    sh "terraform apply -auto-approve tfplan"
                 }
             }
         }
@@ -40,8 +40,8 @@ pipeline {
             steps {
                 script {
                     // Extract IP address from Terraform output
-                    def tfOutput = bat(script: 'terraform output -raw instance_public_ip', returnStdout: true).trim()
-                    def publicIp = tfOutput.replaceAll("\\r", "").replaceAll("\\n", "").trim()
+                    def tfOutput = sh(script: 'terraform output -raw instance_public_ip', returnStdout: true).trim()
+                    def publicIp = tfOutput.trim()
                     
                     // Debug output to see what we're getting
                     echo "Public IP extracted: ${publicIp}"
@@ -70,18 +70,30 @@ ${publicIp} ansible_user=ec2-user ansible_ssh_common_args='-o StrictHostKeyCheck
         }
         
         stage('Ansible Deploy') {
-    steps {
-        withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
-            // Option 1: Change directory before running Docker
-cd ansible && docker run --rm -v C:/ProgramData/Jenkins/.jenkins/workspace/terraform:/workspace -w /workspace/ansible ansible-runner ansible-playbook -i ../inventory.ini --private-key=/ssh_key.pem deploy_gamestore.yml        }
-    }
-}
+            steps {
+                withCredentials([file(credentialsId: 'aws-ssh-key-pem', variable: 'SSH_KEY')]) {
+                    // Adjust path handling for WSL
+                    sh """
+                        cd ansible
+                        # Convert Windows path to WSL path for SSH key
+                        WSL_SSH_KEY=\$(wslpath '${SSH_KEY}')
+                        
+                        # Run Docker with proper volume mounts for WSL
+                        docker run --rm \
+                          -v \$(pwd):/ansible \
+                          -v \$WSL_SSH_KEY:/ssh_key.pem \
+                          ansible-runner \
+                          ansible-playbook -i ../inventory.ini --private-key=/ssh_key.pem deploy_gamestore.yml
+                    """
+                }
+            }
+        }
         
         stage('Verify Deployment') {
             steps {
                 script {
                     try {
-                        def tfOutput = bat(script: 'terraform output -raw application_urls', returnStdout: true).trim()
+                        def tfOutput = sh(script: 'terraform output -raw application_urls', returnStdout: true).trim()
                         echo "Application deployed successfully!"
                         echo "Application URLs: ${tfOutput}"
                     } catch (Exception e) {
@@ -102,13 +114,7 @@ cd ansible && docker run --rm -v C:/ProgramData/Jenkins/.jenkins/workspace/terra
         }
         failure {
             echo 'Deployment failed!'
-            script {
-                emailext (
-                    subject: "Failed Pipeline: ${currentBuild.fullDisplayName}",
-                    body: "Something is wrong with ${env.BUILD_URL}",
-                    to: 'oshadakavinda2@gmail.com'
-                )
-            }
+            
         }
     }
 }

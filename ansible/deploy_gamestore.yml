@@ -12,7 +12,7 @@
       apt:
         update_cache: yes
         cache_valid_time: 3600  # Update cache if older than 1 hour
-      when: ansible_os_family == "Ubuntu"
+      when: ansible_os_family == "Debian"
       
     - name: Update yum package cache (for Amazon Linux/CentOS/RHEL)
       yum:
@@ -33,7 +33,6 @@
     - name: Install Docker dependencies for Amazon Linux
       package:
         name:
-          - amazon-linux-extras
           - docker
           - python3-pip
         state: present
@@ -63,7 +62,7 @@
         
     - name: Copy docker-compose.yml file
       copy:
-        src: ./docker-compose.yml
+        src: ../docker/docker-compose.yml
         dest: "{{ docker_compose_file }}"
         mode: '0644'
         
