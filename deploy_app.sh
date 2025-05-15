@@ -1,4 +1,3 @@
-
 # Create docker-compose.yml
 cat > /home/ubuntu/docker-compose.yml <<'DOCKERCOMPOSE'
 version: '3'
@@ -28,6 +27,6 @@ DOCKERCOMPOSE
 # Fix permissions
 sudo chown ubuntu:ubuntu /home/ubuntu/docker-compose.yml
 
-# Deploy the application using Docker Compose
+# Deploy the application using Docker Compose without sudo and with nohup to avoid terminal issues
 cd /home/ubuntu
-sudo docker-compose up -d
+nohup docker-compose up -d > deploy.log 2>&1 &
