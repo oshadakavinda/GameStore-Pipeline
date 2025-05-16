@@ -13,6 +13,7 @@ terraform {
     key     = "env/dev/terraform.tfstate"
     region  = "eu-north-1"
     encrypt = true
+    dynamodb_table = "gamestore-terraform-devops-state-lock"
   }
 }
 
