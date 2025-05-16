@@ -1,19 +1,19 @@
 pipeline {
     agent any
-    
+
     environment {
         AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
         AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
         TF_IN_AUTOMATION      = 'true'
     }
-    
+
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-        
+
         stage('Download & Setup Key') {
             steps {
                 script {
@@ -27,45 +27,50 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Terraform Init') {
             steps {
-                sh 'terraform init'
+                dir('terraform') {
+                    sh 'terraform init'
+                }
             }
         }
-        
+
         stage('Terraform Validate') {
             steps {
-                sh 'terraform validate'
+                dir('terraform') {
+                    sh 'terraform validate'
+                }
             }
         }
-        
+
         stage('Terraform Plan and Apply') {
             steps {
-                sh "terraform plan -var=\"ssh_private_key_path=./gamestore.pem\" -out=tfplan"
-                sh "terraform apply -auto-approve tfplan"
+                dir('terraform') {
+                    sh 'terraform plan -var="ssh_private_key_path=../gamestore.pem" -out=tfplan'
+                    sh 'terraform apply -auto-approve tfplan'
+                }
             }
         }
-        
+
         stage('Update Inventory') {
             steps {
                 sh 'bash update_inventory.sh'
             }
         }
-            
-        
+
         stage('Ansible Configuration Deploy') {
             steps {
-                dir("ansible") {
-                    sh "ansible-playbook -i inventory.ini enviroment_setup.yml"
+                dir('ansible') {
+                    sh 'ansible-playbook -i inventory.ini enviroment_setup.yml'
                 }
             }
         }
 
         stage('Ansible Deploy App') {
             steps {
-                dir("ansible") {
-                    sh "ansible-playbook -i inventory.ini deploy_gamestore.yml"
+                dir('ansible') {
+                    sh 'ansible-playbook -i inventory.ini deploy_gamestore.yml'
                 }
             }
         }
@@ -74,7 +79,7 @@ pipeline {
             steps {
                 script {
                     try {
-                        def tfOutput = sh(script: 'terraform output -raw application_urls', returnStdout: true).trim()
+                        def tfOutput = sh(script: 'cd terraform && terraform output -raw application_urls', returnStdout: true).trim()
                         echo "Application deployed successfully!"
                         echo "Application URLs: ${tfOutput}"
                     } catch (Exception e) {
@@ -84,14 +89,14 @@ pipeline {
                 }
             }
         }
-        stage('Update Inventory') {
+
+        stage('Inject Game Data') {
             steps {
                 sh 'bash inject_game_data.sh'
             }
         }
-
     }
-    
+
     post {
         always {
             cleanWs()
