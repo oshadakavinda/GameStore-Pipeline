@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+cd terraform || { echo "❌ Failed to enter terraform directory"; exit 1; }
 
 # STEP 1: Extract Public IP from Terraform
 public_ip=$(terraform output -raw instance_public_ip | tr -d '[:space:]')
