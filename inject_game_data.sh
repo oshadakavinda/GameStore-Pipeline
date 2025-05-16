@@ -17,16 +17,39 @@ API_URL="http://${public_ip}:5274/games"
 
 # STEP 3: Delete all existing games
 echo "🗑️ Deleting all existing games..."
-game_ids=$(curl -s "$API_URL" | jq -r '.[].id')
 
-for id in $game_ids; do
-    del_response=$(curl -s -w "%{http_code}" -o /dev/null -X DELETE "${API_URL}/${id}")
-    if [[ "$del_response" == "200" || "$del_response" == "204" ]]; then
-        echo "✅ Deleted game ID $id"
-    else
-        echo "❌ Failed to delete game ID $id (status: $del_response)"
-    fi
-done
+# Get the list of games and check if the call was successful
+games_json=$(curl -s "$API_URL")
+if [[ $? -ne 0 ]]; then
+    echo "❌ Failed to retrieve games list"
+    exit 1
+fi
+
+# Check if the response is valid JSON and contains data
+if ! echo "$games_json" | jq . >/dev/null 2>&1; then
+    echo "❌ Invalid JSON response from API"
+    echo "Response: $games_json"
+    exit 1
+fi
+
+# Extract game IDs more robustly
+game_ids=$(echo "$games_json" | jq -r '.[].id // empty')
+
+# Check if we got any game IDs
+if [[ -z "$game_ids" ]]; then
+    echo "ℹ️ No existing games found to delete."
+else
+    # Delete each game
+    for id in $game_ids; do
+        echo "🗑️ Deleting game ID: $id"
+        del_response=$(curl -s -w "%{http_code}" -o /dev/null -X DELETE "${API_URL}/${id}")
+        if [[ "$del_response" == "200" || "$del_response" == "204" ]]; then
+            echo "✅ Deleted game ID $id"
+        else
+            echo "❌ Failed to delete game ID $id (status: $del_response)"
+        fi
+    done
+fi
 echo "----"
 
 # STEP 4: Define games to inject
