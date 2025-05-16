@@ -1,89 +1,33 @@
 ---
-- name: Deploy Game Store Application
-  hosts: game_store_servers
-  become: yes  # Use sudo privilege
+- name: Deploy Game Store App using Docker Compose
+  hosts: all
+  become: yes
   vars:
     app_dir: /opt/game-store
-    docker_compose_file: "{{ app_dir }}/docker-compose.yml"
-  
+    local_compose_file: ../docker/docker-compose.yml
+
   tasks:
-    - name: Update apt package cache (for Ubuntu/Debian)
-      apt:
-        update_cache: yes
-        cache_valid_time: 3600  # Update cache if older than 1 hour
-      when: ansible_os_family == "Debian"
-      
-    - name: Update yum package cache (for Amazon Linux/CentOS/RHEL)
-      yum:
-        update_cache: yes
-      when: ansible_os_family == "RedHat"
-        
-    - name: Install Docker dependencies
-      package:
-        name:
-          - docker-compose
-          - apt-transport-https
-          - ca-certificates
-          - curl
-          - software-properties-common
-          - python3-pip
-        state: present
-      when: ansible_os_family == "Debian"
-        
-    - name: Install Docker dependencies for Amazon Linux
-      package:
-        name:
-          - docker
-          - python3-pip
-        state: present
-      when: ansible_distribution == "Amazon"
-        
-    - name: Install Docker Python module
-      pip:
-        name: docker
-        state: present
-        
-    - name: Install Docker Compose Python module
-      pip:
-        name: docker-compose
-        state: present
-        
-    - name: Ensure Docker service is started and enabled
-      service:
-        name: docker
-        state: started
-        enabled: yes
-
-    - name: Debug - Check Docker service status
-      shell: systemctl status docker
-      register: docker_status
-      ignore_errors: yes
-
-    - name: Print Docker service status
-      debug:
-        var: docker_status.stdout_lines
-
-    - name: Debug - Check Docker info
-      shell: docker info
-      register: docker_info
-      ignore_errors: yes
-
-    - name: Print Docker info
-      debug:
-        var: docker_info.stdout_lines
-
-    - name: Debug - Check user groups
-      shell: groups
-      register: user_groups
-      ignore_errors: yes
-
-    - name: Print user groups
-      debug:
-        var: user_groups.stdout_lines
-
-    - name: Create application directory
+    - name: Ensure application directory exists on remote
       file:
         path: "{{ app_dir }}"
         state: directory
         mode: '0755'
-     
+
+    - name: Copy docker-compose.yml from local ../docker directory to remote
+      copy:
+        src: "{{ local_compose_file }}"
+        dest: "{{ app_dir }}/docker-compose.yml"
+        mode: '0644'
+
+    - name: Pull Docker images
+      command: docker compose pull
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: Start containers with Docker Compose
+      command: docker compose up -d
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: Show running containers
+      command: docker ps

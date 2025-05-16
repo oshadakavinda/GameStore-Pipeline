@@ -57,21 +57,23 @@ pipeline {
             steps {
                 echo "Waiting for EC2 instance to become available for SSH..."
                 // Give EC2 instance more time to initialize
-                sleep(time: 120, unit: 'SECONDS')
+                sleep(time: 60, unit: 'SECONDS')
             }
         }
         
-        stage('Ansible Deploy') {
+        stage('Ansible Configuration Deploy') {
             steps {
                 dir("ansible") {
-                    sh "ansible-playbook -i inventory.ini deploy_gamestore.yml"
+                    sh "ansible-playbook -i inventory.ini enviroment_setup.yml"
                 }
             }
         }
 
-        stage('Deploy App') {
+        stage('Ansible Deploy App') {
             steps {
-                sh 'bash deploy_app.sh'
+                dir("ansible") {
+                    sh "ansible-playbook -i inventory.ini deploy_gamestore.yml"
+                }
             }
         }
 
