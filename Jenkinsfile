@@ -52,14 +52,7 @@ pipeline {
                 sh 'bash update_inventory.sh'
             }
         }
-        
-        stage('Wait for SSH') {
-            steps {
-                echo "Waiting for EC2 instance to become available for SSH..."
-                // Give EC2 instance more time to initialize
-                sleep(time: 60, unit: 'SECONDS')
-            }
-        }
+            
         
         stage('Ansible Configuration Deploy') {
             steps {
@@ -91,6 +84,12 @@ pipeline {
                 }
             }
         }
+        stage('Update Inventory') {
+            steps {
+                sh 'bash inject_game_data.sh'
+            }
+        }
+
     }
     
     post {
