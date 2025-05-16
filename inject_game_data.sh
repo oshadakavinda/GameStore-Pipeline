@@ -15,7 +15,21 @@ echo "✅ Public IP: $public_ip"
 # STEP 2: Define base API URL
 API_URL="http://${public_ip}:5274/games"
 
-# STEP 3: Define games to inject (10 games across genres)
+# STEP 3: Delete all existing games
+echo "🗑️ Deleting all existing games..."
+game_ids=$(curl -s "$API_URL" | jq -r '.[].id')
+
+for id in $game_ids; do
+    del_response=$(curl -s -w "%{http_code}" -o /dev/null -X DELETE "${API_URL}/${id}")
+    if [[ "$del_response" == "200" || "$del_response" == "204" ]]; then
+        echo "✅ Deleted game ID $id"
+    else
+        echo "❌ Failed to delete game ID $id (status: $del_response)"
+    fi
+done
+echo "----"
+
+# STEP 4: Define games to inject
 games=(
 '{"name": "Tekken 7", "genreId": 1, "price": 29.99, "releaseDate": "2017-06-02"}'
 '{"name": "Street Fighter V", "genreId": 1, "price": 19.99, "releaseDate": "2016-02-16"}'
@@ -29,7 +43,7 @@ games=(
 '{"name": "Valorant", "genreId": 5, "price": 0.00, "releaseDate": "2020-06-02"}'
 )
 
-# STEP 4: POST each game
+# STEP 5: POST each game
 for game in "${games[@]}"; do
     echo "📤 Posting: $game"
     response=$(curl -s -w "%{http_code}" -o /dev/null -X POST "$API_URL" \
