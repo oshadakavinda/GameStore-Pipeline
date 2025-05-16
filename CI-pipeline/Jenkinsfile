@@ -1,0 +1,102 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKERHUB_CREDENTIALS = 'docker-hub'  // Jenkins credentials ID
+        DOCKERHUB_USERNAME = 'oshadakavinda2'
+        FRONTEND_IMAGE = 'oshadakavinda2/game-store-frontend'
+        API_IMAGE = 'oshadakavinda2/game-store-api'
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+        skipDefaultCheckout(true)
+    }
+
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('Clone Repository') {
+            steps {
+                script {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '*/master']],
+                        extensions: [
+                            [$class: 'CloneOption', depth: 1, noTags: true, shallow: true, timeout: 10],
+                            [$class: 'CleanBeforeCheckout'],
+                            [$class: 'SparseCheckoutPaths', sparseCheckoutPaths: [
+                                [$class: 'SparseCheckoutPath', path: 'GameStore.Api/'],
+                                [$class: 'SparseCheckoutPath', path: 'GameStore.Frontend/'],
+                                [$class: 'SparseCheckoutPath', path: 'docker-compose.yml'],
+                                [$class: 'SparseCheckoutPath', path: '.gitignore']
+                            ]]
+                        ],
+                        userRemoteConfigs: [[url: 'https://github.com/oshadakavinda/Game-Store.git']]
+                    ])
+                }
+            }
+        }
+
+        stage('Docker Login') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: DOCKERHUB_CREDENTIALS, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    bat "docker login -u ${DOCKER_USER} -p ${DOCKER_PASS}"
+                }
+            }
+        }
+
+        stage('Build Frontend Docker Image') {
+            steps {
+                script {
+                    try {
+                        bat "docker build -t ${FRONTEND_IMAGE}:latest GameStore.Frontend/"
+                    } catch (Exception e) {
+                        error("❌ Frontend Docker build failed: ${e.message}")
+                    }
+                }
+            }
+        }
+
+        stage('Build API Docker Image') {
+            steps {
+                script {
+                    try {
+                        bat "docker build -t ${API_IMAGE}:latest GameStore.Api/"
+                    } catch (Exception e) {
+                        error("❌ API Docker build failed: ${e.message}")
+                    }
+                }
+            }
+        }
+
+        stage('Push Docker Images') {
+            steps {
+                script {
+                    try {
+                        bat "docker push ${FRONTEND_IMAGE}:latest"
+                        bat "docker push ${API_IMAGE}:latest"
+                    } catch (Exception e) {
+                        error("❌ Docker image push failed: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo '✅ Docker images successfully built and pushed to Docker Hub!'
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+        }
+    }
+}
